@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
 import '../models/track.dart';
-import '../services/database_service.dart';
-import '../services/download_service.dart';
-import '../services/player_service.dart';
 import '../services/youtube_service.dart';
 import '../widgets/download_dialog.dart';
 import '../widgets/track_card.dart';
@@ -17,14 +15,14 @@ class SearchScreen extends StatefulWidget {
 }
 
 class _SearchScreenState extends State<SearchScreen> {
-  final _controller = TextEditingController();
-  final _focusNode = FocusNode();
+  final _ctrl = TextEditingController();
+  final _focus = FocusNode();
 
   void _search() {
-    final q = _controller.text.trim();
+    final q = _ctrl.text.trim();
     if (q.isEmpty) return;
     context.read<YouTubeService>().search(q);
-    _focusNode.unfocus();
+    _focus.unfocus();
   }
 
   void _showOptions(Track track) {
@@ -32,35 +30,63 @@ class _SearchScreenState extends State<SearchScreen> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
+      backgroundColor: const Color(0xFF1A1A2E),
       builder: (_) => DownloadDialog(track: track),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final ytService = context.watch<YouTubeService>();
+    final svc = context.watch<YouTubeService>();
 
     return SafeArea(
       child: Column(
         children: [
-          // ── Search bar ──────────────────────────────────────────
+          // Header
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('BitMusic',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold)),
+                const SizedBox(height: 2),
+                Text('Найди любой трек',
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.4),
+                        fontSize: 13)),
+              ],
+            ).animate().fadeIn(duration: 400.ms),
+          ),
+          const SizedBox(height: 16),
+
+          // Search bar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
                 Expanded(
                   child: TextField(
-                    controller: _controller,
-                    focusNode: _focusNode,
+                    controller: _ctrl,
+                    focusNode: _focus,
                     textInputAction: TextInputAction.search,
                     onSubmitted: (_) => _search(),
+                    style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
                       hintText: 'Трек, исполнитель, строки из текста…',
-                      prefixIcon: const Icon(Icons.search),
+                      hintStyle: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.3)),
+                      prefixIcon:
+                          const Icon(Icons.search, color: Colors.white38),
+                      filled: true,
+                      fillColor: const Color(0xFF1C1C2E),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(28),
+                        borderSide: BorderSide.none,
                       ),
-                      filled: true,
                       contentPadding:
                           const EdgeInsets.symmetric(vertical: 0),
                     ),
@@ -68,6 +94,14 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
                 const SizedBox(width: 8),
                 FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF7C4DFF),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(28)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 14),
+                  ),
                   onPressed: _search,
                   child: const Text('Найти'),
                 ),
@@ -75,16 +109,28 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
 
-          // ── Results ─────────────────────────────────────────────
-          Expanded(child: _buildBody(ytService)),
+          const SizedBox(height: 8),
+
+          Expanded(child: _body(svc)),
         ],
       ),
     );
   }
 
-  Widget _buildBody(YouTubeService svc) {
+  Widget _body(YouTubeService svc) {
     if (svc.isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation(Color(0xFF7C4DFF))),
+            const SizedBox(height: 16),
+            Text('Поиск…',
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.4))),
+          ],
+        ),
+      );
     }
 
     if (svc.error != null) {
@@ -94,17 +140,20 @@ class _SearchScreenState extends State<SearchScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, size: 56, color: Colors.red),
+              const Icon(Icons.wifi_off_rounded, size: 56, color: Colors.red),
               const SizedBox(height: 12),
-              Text(
-                svc.error!,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
+              Text(svc.error!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70)),
               const SizedBox(height: 20),
-              FilledButton.tonal(
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Color(0xFF7C4DFF)),
+                ),
                 onPressed: _search,
-                child: const Text('Повторить'),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Повторить'),
               ),
             ],
           ),
@@ -117,16 +166,16 @@ class _SearchScreenState extends State<SearchScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.music_note,
-                size: 80,
-                color: Theme.of(context).colorScheme.outlineVariant),
-            const SizedBox(height: 16),
-            Text(
-              'Введите запрос для поиска музыки',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
+            ShaderMask(
+              shaderCallback: (r) => const LinearGradient(
+                colors: [Color(0xFF7C4DFF), Color(0xFFE040FB)],
+              ).createShader(r),
+              child: const Icon(Icons.music_note, size: 80, color: Colors.white),
             ),
+            const SizedBox(height: 16),
+            Text('Введите запрос',
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.5), fontSize: 16)),
           ],
         ),
       );
@@ -135,20 +184,18 @@ class _SearchScreenState extends State<SearchScreen> {
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 8),
       itemCount: svc.searchResults.length,
-      itemBuilder: (ctx, i) {
-        final track = svc.searchResults[i];
-        return TrackCard(
-          track: track,
-          onTap: () => _showOptions(track),
-        );
-      },
+      itemBuilder: (ctx, i) => TrackCard(
+        track: svc.searchResults[i],
+        onTap: () => _showOptions(svc.searchResults[i]),
+      ).animate(delay: (i * 40).ms).fadeIn(duration: 300.ms).slideX(
+          begin: 0.05, end: 0, duration: 300.ms, curve: Curves.easeOut),
     );
   }
 
   @override
   void dispose() {
-    _controller.dispose();
-    _focusNode.dispose();
+    _ctrl.dispose();
+    _focus.dispose();
     super.dispose();
   }
 }

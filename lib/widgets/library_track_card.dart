@@ -21,56 +21,67 @@ class LibraryTrackCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Card(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      color: isActive ? cs.primaryContainer : null,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: isActive
+            ? const Color(0xFF7C4DFF).withValues(alpha: 0.15)
+            : const Color(0xFF1C1C2E),
+        border: Border.all(
+          color: isActive
+              ? const Color(0xFF7C4DFF).withValues(alpha: 0.5)
+              : Colors.white.withValues(alpha: 0.05),
+        ),
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              // Thumbnail with play overlay
+              // Thumbnail
               Stack(
                 alignment: Alignment.center,
                 children: [
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(10),
                     child: CachedNetworkImage(
                       imageUrl: track.thumbnailUrl,
-                      width: 56,
-                      height: 56,
+                      width: 54,
+                      height: 54,
                       fit: BoxFit.cover,
                       errorWidget: (_, __, ___) => Container(
-                        width: 56,
-                        height: 56,
-                        color: cs.surfaceContainerHighest,
-                        child: const Icon(Icons.music_note),
+                        width: 54,
+                        height: 54,
+                        color: const Color(0xFF252540),
+                        child: const Icon(Icons.music_note,
+                            color: Colors.white24),
                       ),
                     ),
                   ),
                   if (isActive)
                     Container(
-                      width: 56,
-                      height: 56,
+                      width: 54,
+                      height: 54,
                       decoration: BoxDecoration(
-                        color: Colors.black45,
-                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       child: Icon(
-                        isPlaying ? Icons.graphic_eq : Icons.play_arrow,
-                        color: Colors.white,
-                        size: 28,
+                        isPlaying
+                            ? Icons.graphic_eq_rounded
+                            : Icons.play_arrow_rounded,
+                        color: const Color(0xFF7C4DFF),
+                        size: 26,
                       ),
                     ),
                 ],
               ),
               const SizedBox(width: 12),
 
-              // Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -79,36 +90,42 @@ class LibraryTrackCard extends StatelessWidget {
                       track.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: isActive ? cs.primary : null,
-                          ),
+                      style: TextStyle(
+                        color: isActive
+                            ? const Color(0xFF9D7EFF)
+                            : Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
                       track.artist,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.4),
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
               ),
 
-              // Duration
-              Text(track.durationFormatted,
-                  style: Theme.of(context).textTheme.bodySmall),
+              Text(
+                track.durationFormatted,
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.3), fontSize: 12),
+              ),
               const SizedBox(width: 4),
 
-              // Delete
               IconButton(
-                icon: const Icon(Icons.delete_outline_rounded),
-                color: cs.error,
-                tooltip: 'Удалить',
+                icon: const Icon(Icons.delete_outline_rounded,
+                    size: 20, color: Colors.redAccent),
                 onPressed: onDelete,
+                constraints: const BoxConstraints(),
+                padding: const EdgeInsets.only(left: 8),
+                tooltip: 'Удалить',
               ),
             ],
           ),

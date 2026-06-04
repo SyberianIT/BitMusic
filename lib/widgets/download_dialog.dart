@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/track.dart';
+import '../screens/player_screen.dart';
 import '../services/database_service.dart';
 import '../services/download_service.dart';
 import '../services/player_service.dart';
@@ -10,7 +11,6 @@ import '../services/youtube_service.dart';
 
 class DownloadDialog extends StatelessWidget {
   final Track track;
-
   const DownloadDialog({super.key, required this.track});
 
   @override
@@ -19,11 +19,11 @@ class DownloadDialog extends StatelessWidget {
     final dl = context.watch<DownloadService>();
     final isDownloaded = db.isDownloaded(track.id);
     final progress = dl.getProgress(track.id);
-    final isDownloading = progress?.status == DownloadStatus.downloading ||
+    final busy = progress?.status == DownloadStatus.downloading ||
         progress?.status == DownloadStatus.converting;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -31,19 +31,18 @@ class DownloadDialog extends StatelessWidget {
           Row(
             children: [
               ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
                 child: CachedNetworkImage(
                   imageUrl: track.thumbnailUrl,
-                  width: 60,
-                  height: 60,
+                  width: 64,
+                  height: 64,
                   fit: BoxFit.cover,
                   errorWidget: (_, __, ___) => Container(
-                    width: 60,
-                    height: 60,
-                    color:
-                        Theme.of(context).colorScheme.surfaceContainerHighest,
-                    child: const Icon(Icons.music_note),
-                  ),
+                      width: 64,
+                      height: 64,
+                      color: const Color(0xFF252540),
+                      child: const Icon(Icons.music_note,
+                          color: Colors.white24)),
                 ),
               ),
               const SizedBox(width: 12),
@@ -51,84 +50,60 @@ class DownloadDialog extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      track.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleSmall
-                          ?.copyWith(fontWeight: FontWeight.bold),
-                    ),
+                    Text(track.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14)),
+                    const SizedBox(height: 2),
                     Text(track.artist,
-                        style: Theme.of(context).textTheme.bodySmall),
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.4),
+                            fontSize: 12)),
                     Text(track.durationFormatted,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.outline,
-                            )),
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.3),
+                            fontSize: 11)),
                   ],
                 ),
               ),
             ],
           ),
-          const Divider(height: 24),
 
-          if (isDownloading) ...[
-            // Download progress
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Column(
-                children: [
-                  LinearProgressIndicator(
-                      value: progress?.status == DownloadStatus.converting
-                          ? null
-                          : progress?.progress),
-                  const SizedBox(height: 8),
-                  Text(
-                    progress?.status == DownloadStatus.converting
-                        ? 'Конвертация в MP3…'
-                        : 'Скачивание: '
-                            '${((progress?.progress ?? 0) * 100).toStringAsFixed(0)}%',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-          ] else if (isDownloaded) ...[
-            // Already downloaded — play option
-            _Option(
+          const SizedBox(height: 16),
+          Divider(color: Colors.white.withValues(alpha: 0.08)),
+          const SizedBox(height: 4),
+
+          if (busy)
+            _ProgressIndicator(progress: progress)
+          else if (isDownloaded) ...[
+            _Action(
               icon: Icons.play_circle_fill_rounded,
-              color: Theme.of(context).colorScheme.primary,
-              title: 'Слушать',
-              subtitle: 'Воспроизвести трек',
+              color: const Color(0xFF7C4DFF),
+              label: 'Слушать',
+              sub: 'Открыть плеер',
               onTap: () {
                 Navigator.pop(context);
                 final saved = db.getTrack(track.id);
                 if (saved != null) {
-                  context.read<PlayerService>().play(saved);
+                  context
+                      .read<PlayerService>()
+                      .play(saved, queue: db.tracks);
+                  Navigator.of(context).push(PlayerScreen.route());
                 }
               },
             ),
-            _Option(
-              icon: Icons.delete_outline_rounded,
-              color: Theme.of(context).colorScheme.error,
-              title: 'Удалить загрузку',
-              subtitle: 'Освободить место',
-              onTap: () {
-                Navigator.pop(context);
-                // Delegate to library screen logic
-              },
-            ),
           ] else ...[
-            // Not downloaded
-            _Option(
+            _Action(
               icon: Icons.download_rounded,
-              color: Theme.of(context).colorScheme.primary,
-              title: 'Скачать аудио',
-              subtitle: 'Лучшее качество (AAC/OPUS → MP3 на ПК)',
+              color: const Color(0xFF7C4DFF),
+              label: 'Скачать аудио',
+              sub: 'Лучшее качество · AAC/OPUS · MP3 на ПК',
               onTap: () {
                 Navigator.pop(context);
-                _startDownload(context);
+                _download(context);
               },
             ),
           ],
@@ -137,43 +112,86 @@ class DownloadDialog extends StatelessWidget {
     );
   }
 
-  void _startDownload(BuildContext context) {
-    final dl = context.read<DownloadService>();
-    final yt = context.read<YouTubeService>();
-    final db = context.read<DatabaseService>();
+  void _download(BuildContext context) {
+    context
+        .read<DownloadService>()
+        .downloadTrack(track, context.read<YouTubeService>(),
+            context.read<DatabaseService>());
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      backgroundColor: const Color(0xFF1C1C2E),
+      content: Text('Загружается: ${track.title}',
+          style: const TextStyle(color: Colors.white)),
+      duration: const Duration(seconds: 2),
+    ));
+  }
+}
 
-    dl.downloadTrack(track, yt, db);
+class _ProgressIndicator extends StatelessWidget {
+  final DownloadProgress? progress;
+  const _ProgressIndicator({this.progress});
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Загружается: ${track.title}'),
-        duration: const Duration(seconds: 2),
+  @override
+  Widget build(BuildContext context) {
+    final isConverting = progress?.status == DownloadStatus.converting;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: isConverting ? null : progress?.progress,
+              backgroundColor: Colors.white12,
+              valueColor: const AlwaysStoppedAnimation(Color(0xFF7C4DFF)),
+              minHeight: 4,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isConverting
+                ? 'Конвертация в MP3…'
+                : 'Скачивание ${((progress?.progress ?? 0) * 100).toInt()}%',
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _Option extends StatelessWidget {
+class _Action extends StatelessWidget {
   final IconData icon;
   final Color color;
-  final String title;
-  final String subtitle;
+  final String label;
+  final String sub;
   final VoidCallback onTap;
 
-  const _Option({
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
+  const _Action(
+      {required this.icon,
+      required this.color,
+      required this.label,
+      required this.sub,
+      required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Icon(icon, color: color, size: 28),
-      title: Text(title),
-      subtitle: Text(subtitle),
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color.withValues(alpha: 0.15),
+        ),
+        child: Icon(icon, color: color, size: 22),
+      ),
+      title: Text(label,
+          style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.w600)),
+      subtitle: Text(sub,
+          style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.35), fontSize: 12)),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       onTap: onTap,
     );
