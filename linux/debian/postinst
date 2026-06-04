@@ -1,0 +1,21 @@
+#!/bin/sh
+set -e
+
+# Create desktop launcher
+cat > /usr/share/applications/bitmusic.desktop << 'EOF'
+[Desktop Entry]
+Name=BitMusic
+Comment=Search and download music from YouTube
+Exec=/usr/bin/bitmusic
+Icon=bitmusic
+Terminal=false
+Type=Application
+Categories=Audio;Music;Network;
+Keywords=music;youtube;download;player;
+EOF
+
+update-desktop-database /usr/share/applications/ 2>/dev/null || true
+
+echo "BitMusic installed successfully."
+echo "Make sure ffmpeg is installed for MP3 conversion:"
+echo "  sudo apt install ffmpeg"

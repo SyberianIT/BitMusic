@@ -1,0 +1,9 @@
+bitmusic (1.0.0-1) stable; urgency=medium
+
+  * Initial release.
+  * Search YouTube by track name, artist, or lyrics.
+  * Download audio (AAC/OPUS, MP3 conversion via ffmpeg).
+  * Offline playback of downloaded tracks.
+  * Adaptive Material Design 3 UI (mobile + desktop).
+
+ -- SyberianIT <info@syberianit.com>  Wed, 04 Jun 2025 12:00:00 +0000

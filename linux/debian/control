@@ -1,0 +1,17 @@
+Package: bitmusic
+Version: 1.0.0
+Architecture: amd64
+Maintainer: SyberianIT <info@syberianit.com>
+Installed-Size: 50000
+Depends: libgtk-3-0 (>= 3.24), liblzma5, libglib2.0-0, libgstreamer1.0-0, libgstreamer-plugins-base1.0-0, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, ffmpeg
+Recommends: gstreamer1.0-libav
+Section: sound
+Priority: optional
+Homepage: https://github.com/syberianit/bitmusic
+Description: BitMusic — Music Search & Download
+ Search YouTube for any track by name, artist or lyrics.
+ Download audio in high quality (AAC/OPUS, auto-converted to MP3 192 kbps
+ when ffmpeg is available).
+ Play downloaded tracks offline with the built-in player.
+ .
+ Supported platforms: Linux, Android, iOS, Windows.
