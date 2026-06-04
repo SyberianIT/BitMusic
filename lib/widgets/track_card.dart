@@ -176,18 +176,54 @@ class _StatusBadge extends StatelessWidget {
     }
     final st = progress?.status;
     if (st == DownloadStatus.downloading || st == DownloadStatus.converting) {
-      return SizedBox(
-        width: 20,
-        height: 20,
-        child: CircularProgressIndicator(
-          strokeWidth: 2.5,
-          value: st == DownloadStatus.downloading ? progress?.progress : null,
-          valueColor: const AlwaysStoppedAnimation(Color(0xFF7C4DFF)),
-          backgroundColor: Colors.white12,
-        ),
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              value:
+                  st == DownloadStatus.downloading ? progress?.progress : null,
+              valueColor:
+                  const AlwaysStoppedAnimation(Color(0xFF7C4DFF)),
+              backgroundColor: Colors.white12,
+            ),
+          ),
+          if (progress?.provider != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: _ProviderDot(provider: progress!.provider!),
+            ),
+        ],
       );
     }
     return Icon(Icons.download_outlined,
         size: 18, color: Colors.white.withValues(alpha: 0.3));
+  }
+}
+
+class _ProviderDot extends StatelessWidget {
+  final AudioProvider provider;
+  const _ProviderDot({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (provider) {
+      AudioProvider.youtube => ('YT', Colors.red),
+      AudioProvider.soundcloud => ('SC', Colors.deepOrange),
+      AudioProvider.direct => ('URL', Colors.teal),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 0.5),
+      ),
+      child: Text(label,
+          style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold)),
+    );
   }
 }
