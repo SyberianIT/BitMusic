@@ -1,0 +1,25 @@
+#!/usr/bin/make -f
+# Debian rules for BitMusic
+
+INSTALL_DIR = $(CURDIR)/debian/bitmusic
+BIN_DIR     = $(INSTALL_DIR)/usr/bin
+LIB_DIR     = $(INSTALL_DIR)/usr/lib/bitmusic
+SHARE_DIR   = $(INSTALL_DIR)/usr/share/bitmusic
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	flutter build linux --release
+
+override_dh_auto_install:
+	install -d $(BIN_DIR) $(LIB_DIR) $(SHARE_DIR)
+	# Copy main binary
+	install -m 755 build/linux/x64/release/bundle/bitmusic $(BIN_DIR)/bitmusic
+	# Copy Flutter shared libs
+	cp -r build/linux/x64/release/bundle/lib/. $(LIB_DIR)/
+	# Copy Flutter assets (data/)
+	cp -r build/linux/x64/release/bundle/data/. $(SHARE_DIR)/
+
+override_dh_strip:
+	# Flutter binaries are already stripped
