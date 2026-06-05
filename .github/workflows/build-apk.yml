@@ -73,12 +73,15 @@ jobs:
           path: artifacts/
           retention-days: 30
 
-      # ── Create GitHub Release on version tag ──────────────────────────────
-      - name: Create Release
+      # ── Create/update GitHub Release ─────────────────────────────────────
+      # On version tags: stable release named v1.x.x
+      # On push to main / workflow_dispatch: rolling "latest" pre-release
+      - name: Create Release (version tag)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           name: BitMusic ${{ env.VERSION }}
+          tag_name: ${{ github.ref_name }}
           body: |
             ## BitMusic ${{ env.VERSION }}
 
@@ -104,3 +107,40 @@ jobs:
             artifacts/BitMusic-${{ env.VERSION }}-universal.apk
           draft: false
           prerelease: false
+
+      - name: Create or update rolling "latest" release
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: BitMusic latest (автосборка)
+          tag_name: latest
+          body: |
+            ## BitMusic ${{ env.VERSION }} — последняя сборка
+
+            Автоматически собирается с каждым коммитом в `main`.
+
+            ### Скачать APK
+
+            | Файл | Архитектура |
+            |------|-------------|
+            | `BitMusic-${{ env.VERSION }}-arm64.apk` | ARM 64-bit (**рекомендуется** для большинства телефонов 2017+) |
+            | `BitMusic-${{ env.VERSION }}-arm32.apk` | ARM 32-bit (старые телефоны) |
+            | `BitMusic-${{ env.VERSION }}-x64.apk` | x86_64 (эмуляторы) |
+            | `BitMusic-${{ env.VERSION }}-universal.apk` | Универсальный (все архитектуры, больший размер) |
+
+            > Для установки разрешите "Установку из неизвестных источников" в настройках Android.
+
+            ### Возможности
+            - Поиск музыки на YouTube (до 10 результатов)
+            - Скачивание: YouTube + SoundCloud, автоматически выбирается лучшее качество
+            - Офлайн-плеер с очередью, шаффлом и тремя режимами повтора
+            - 5-полосный эквалайзер с 8 пресетами (аппаратный на Android)
+            - Распознавание музыки по звуку в стиле Shazam (AudD API)
+            - Анимированный спектр-визуализатор
+          files: |
+            artifacts/BitMusic-${{ env.VERSION }}-arm64.apk
+            artifacts/BitMusic-${{ env.VERSION }}-arm32.apk
+            artifacts/BitMusic-${{ env.VERSION }}-x64.apk
+            artifacts/BitMusic-${{ env.VERSION }}-universal.apk
+          draft: false
+          prerelease: true
