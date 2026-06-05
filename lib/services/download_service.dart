@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -7,7 +8,10 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 import '../models/track.dart';
 import 'database_service.dart';
+import 'source_resolver.dart';
 import 'youtube_service.dart';
+
+export 'source_resolver.dart' show AudioProvider, AudioSource;
 
 enum DownloadStatus { idle, downloading, converting, done, error }
 
@@ -16,152 +20,202 @@ class DownloadProgress {
   final DownloadStatus status;
   final double progress;
   final String? error;
+  final AudioProvider? provider;
 
   const DownloadProgress({
     required this.trackId,
     required this.status,
     this.progress = 0.0,
     this.error,
+    this.provider,
   });
 }
 
 class DownloadService extends ChangeNotifier {
+  final _dio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 20),
+    receiveTimeout: const Duration(minutes: 5),
+  ));
+  final _resolver = SourceResolver();
   final Map<String, DownloadProgress> _downloads = {};
 
   DownloadProgress? getProgress(String trackId) => _downloads[trackId];
-
   bool isDownloading(String trackId) =>
       _downloads[trackId]?.status == DownloadStatus.downloading;
 
+  // ── Public API ─────────────────────────────────────────────────────────────
+
+  /// Downloads from the best available source (YouTube → SoundCloud → …).
   Future<void> downloadTrack(
     Track track,
     YouTubeService ytService,
     DatabaseService dbService,
   ) async {
     if (isDownloading(track.id)) return;
-
     _update(track.id, DownloadStatus.downloading, 0.0);
 
     try {
       final musicDir = await _getMusicDirectory();
       if (musicDir == null) {
-        _update(track.id, DownloadStatus.error, 0.0,
-            error: 'Нет доступа к хранилищу');
+        _error(track.id, 'Нет доступа к хранилищу');
         return;
       }
 
-      final manifest = await ytService.getStreamManifest(track.videoId);
-      if (manifest == null) {
-        _update(track.id, DownloadStatus.error, 0.0,
-            error: 'Не удалось получить аудиопоток. Видео заблокировано?');
+      // 1. Resolve sources sorted by quality (highest bitrate first)
+      final sources = await _resolver.resolve(
+        '${track.artist} ${track.title}',
+        youtubeVideoId: track.videoId,
+      );
+
+      if (sources.isEmpty) {
+        // Fallback: use youtube_explode directly (original behaviour)
+        await _fallbackYouTube(track, ytService, dbService, musicDir);
         return;
       }
 
-      final audioStreams = manifest.audioOnly.sortByBitrate();
-      if (audioStreams.isEmpty) {
-        _update(track.id, DownloadStatus.error, 0.0,
-            error: 'Нет аудиодорожки');
-        return;
-      }
-
-      // Prefer AAC (m4a) over OPUS for widest player compatibility
-      AudioOnlyStreamInfo bestStream;
-      try {
-        bestStream = audioStreams.lastWhere(
-          (s) => s.audioCodec.contains('mp4a'),
-        );
-      } catch (_) {
-        bestStream = audioStreams.last;
-      }
-
-      final isAac = bestStream.audioCodec.contains('mp4a');
-      final rawExt = isAac ? 'm4a' : 'webm';
+      final best = sources.first;
       final safeTitle =
           track.title.replaceAll(RegExp(r'[<>:"/\\|?*\x00-\x1F]'), '_');
+
+      // 2. Download selected source
+      final rawExt = _extFor(best.format);
       final rawPath = '$musicDir/${safeTitle}_${track.videoId}.$rawExt';
+      await _downloadUrl(track.id, best.streamUrl, rawPath, best.headers);
 
-      // Stream bytes to disk without loading into RAM
-      final stream = ytService.getAudioStream(bestStream);
-      final file = File(rawPath);
-      final sink = file.openWrite();
-      final totalBytes = bestStream.size.totalBytes.toDouble();
-      int downloaded = 0;
-
-      try {
-        await for (final chunk in stream) {
-          sink.add(chunk);
-          downloaded += chunk.length;
-          _update(track.id, DownloadStatus.downloading,
-              totalBytes > 0 ? downloaded / totalBytes : 0);
-        }
-      } finally {
-        await sink.flush();
-        await sink.close();
-      }
-
-      // Attempt MP3 conversion via system ffmpeg (desktop only)
+      // 3. Optional MP3 conversion on desktop
       String finalPath = rawPath;
       if (!Platform.isAndroid && !Platform.isIOS) {
-        _update(track.id, DownloadStatus.converting, 0.95);
-        final mp3Path =
-            '$musicDir/${safeTitle}_${track.videoId}.mp3';
-        final converted = await _convertToMp3(rawPath, mp3Path);
-        if (converted) {
+        _update(track.id, DownloadStatus.converting, 0.95,
+            provider: best.provider);
+        final mp3Path = '$musicDir/${safeTitle}_${track.videoId}.mp3';
+        if (await _convertToMp3(rawPath, mp3Path)) {
           await File(rawPath).delete();
           finalPath = mp3Path;
         }
       }
 
-      final saved = track.copyWith(
+      await dbService.saveTrack(track.copyWith(
         localPath: finalPath,
         isDownloaded: true,
         downloadedAt: DateTime.now(),
-      );
-      await dbService.saveTrack(saved);
+      ));
 
-      _update(track.id, DownloadStatus.done, 1.0);
-
-      // Auto-clear progress indicator
+      _update(track.id, DownloadStatus.done, 1.0, provider: best.provider);
       await Future.delayed(const Duration(seconds: 3));
       _downloads.remove(track.id);
       notifyListeners();
     } on SocketException {
-      _update(track.id, DownloadStatus.error, 0.0,
-          error: 'Нет подключения к интернету');
+      _error(track.id, 'Нет подключения к интернету');
     } catch (e) {
-      _update(track.id, DownloadStatus.error, 0.0,
-          error: 'Ошибка скачивания: $e');
+      _error(track.id, 'Ошибка: $e');
     }
   }
 
-  // ---------------------------------------------------------------------------
+  // ── Download via Dio (supports progress) ──────────────────────────────────
+
+  Future<void> _downloadUrl(
+    String trackId,
+    String url,
+    String savePath,
+    Map<String, String> extraHeaders,
+  ) async {
+    await _dio.download(
+      url,
+      savePath,
+      options: Options(headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; BitMusic/1.0)',
+        ...extraHeaders,
+      }),
+      onReceiveProgress: (received, total) {
+        if (total > 0) {
+          _update(trackId, DownloadStatus.downloading, received / total);
+        }
+      },
+    );
+  }
+
+  // ── Fallback: original youtube_explode stream (when resolver fails) ────────
+
+  Future<void> _fallbackYouTube(
+    Track track,
+    YouTubeService ytService,
+    DatabaseService dbService,
+    String musicDir,
+  ) async {
+    final manifest = await ytService.getStreamManifest(track.videoId);
+    if (manifest == null) {
+      _error(track.id, 'Не удалось получить аудиопоток');
+      return;
+    }
+    final streams = manifest.audioOnly.sortByBitrate();
+    AudioOnlyStreamInfo best;
+    try {
+      best = streams.lastWhere((s) => s.audioCodec.contains('mp4a'));
+    } catch (_) {
+      best = streams.last;
+    }
+
+    final ext = best.audioCodec.contains('mp4a') ? 'm4a' : 'webm';
+    final safeTitle =
+        track.title.replaceAll(RegExp(r'[<>:"/\\|?*\x00-\x1F]'), '_');
+    final path = '$musicDir/${safeTitle}_${track.videoId}.$ext';
+
+    final sink = File(path).openWrite();
+    final total = best.size.totalBytes.toDouble();
+    int done = 0;
+    try {
+      await for (final chunk in ytService.getAudioStream(best)) {
+        sink.add(chunk);
+        done += chunk.length;
+        _update(track.id, DownloadStatus.downloading,
+            total > 0 ? done / total : 0,
+            provider: AudioProvider.youtube);
+      }
+    } finally {
+      await sink.flush();
+      await sink.close();
+    }
+
+    await dbService.saveTrack(track.copyWith(
+      localPath: path,
+      isDownloaded: true,
+      downloadedAt: DateTime.now(),
+    ));
+    _update(track.id, DownloadStatus.done, 1.0,
+        provider: AudioProvider.youtube);
+    await Future.delayed(const Duration(seconds: 3));
+    _downloads.remove(track.id);
+    notifyListeners();
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  String _extFor(String format) => switch (format) {
+        'aac' => 'm4a',
+        'opus' => 'opus',
+        'wav' => 'wav',
+        'flac' => 'flac',
+        _ => 'mp3',
+      };
 
   Future<String?> _getMusicDirectory() async {
     if (Platform.isAndroid) {
       bool granted = await Permission.storage.isGranted;
+      if (!granted) granted = (await Permission.storage.request()).isGranted;
       if (!granted) {
-        granted = (await Permission.storage.request()).isGranted;
-      }
-      // Android 10+ may need this
-      if (!granted) {
-        granted =
-            (await Permission.manageExternalStorage.request()).isGranted;
+        granted = (await Permission.manageExternalStorage.request()).isGranted;
       }
       if (!granted) return null;
-
       final dir = Directory('/storage/emulated/0/Music/BitMusic');
       await dir.create(recursive: true);
       return dir.path;
     }
-
     if (Platform.isIOS) {
       final docs = await getApplicationDocumentsDirectory();
       final dir = Directory('${docs.path}/BitMusic');
       await dir.create(recursive: true);
       return dir.path;
     }
-
-    // Desktop: Linux / Windows / macOS
     if (Platform.isLinux || Platform.isMacOS) {
       final home = Platform.environment['HOME'] ??
           (await getApplicationDocumentsDirectory()).path;
@@ -169,47 +223,52 @@ class DownloadService extends ChangeNotifier {
       await dir.create(recursive: true);
       return dir.path;
     }
-
     if (Platform.isWindows) {
-      final userProfile = Platform.environment['USERPROFILE'] ??
+      final up = Platform.environment['USERPROFILE'] ??
           (await getApplicationDocumentsDirectory()).path;
-      final dir = Directory('$userProfile\\Music\\BitMusic');
+      final dir = Directory('$up\\Music\\BitMusic');
       await dir.create(recursive: true);
       return dir.path;
     }
-
     final docs = await getApplicationDocumentsDirectory();
     final dir = Directory('${docs.path}/BitMusic');
     await dir.create(recursive: true);
     return dir.path;
   }
 
-  /// Converts [inputPath] to MP3 192 kbps using system ffmpeg.
-  /// Returns true on success.
-  Future<bool> _convertToMp3(String inputPath, String outputPath) async {
+  Future<bool> _convertToMp3(String input, String output) async {
     try {
-      final result = await Process.run('ffmpeg', [
-        '-i', inputPath,
+      final r = await Process.run('ffmpeg', [
+        '-i', input,
         '-codec:a', 'libmp3lame',
         '-b:a', '192k',
-        '-y',
-        outputPath,
+        '-y', output,
       ]);
-      return result.exitCode == 0;
+      return r.exitCode == 0;
     } catch (_) {
-      // ffmpeg not installed — keep original format
       return false;
     }
   }
 
   void _update(String id, DownloadStatus status, double progress,
-      {String? error}) {
+      {String? error, AudioProvider? provider}) {
     _downloads[id] = DownloadProgress(
       trackId: id,
       status: status,
       progress: progress,
       error: error,
+      provider: provider,
     );
     notifyListeners();
+  }
+
+  void _error(String id, String msg) =>
+      _update(id, DownloadStatus.error, 0.0, error: msg);
+
+  @override
+  void dispose() {
+    _dio.close();
+    _resolver.dispose();
+    super.dispose();
   }
 }

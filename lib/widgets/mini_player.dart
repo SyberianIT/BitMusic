@@ -1,8 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
+import '../screens/player_screen.dart';
 import '../services/player_service.dart';
+import 'spectrum_visualizer.dart';
 
 class MiniPlayer extends StatelessWidget {
   const MiniPlayer({super.key});
@@ -15,137 +18,142 @@ class MiniPlayer extends StatelessWidget {
 
     final cs = Theme.of(context).colorScheme;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: cs.surfaceContainer,
-        border: Border(top: BorderSide(color: cs.outlineVariant, width: 0.5)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push(PlayerScreen.route()),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFF1E1E35),
+              cs.surfaceContainer,
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Seek bar
-          GestureDetector(
-            onTapDown: (details) {
-              final box = context.findRenderObject() as RenderBox;
-              final dx = details.localPosition.dx;
-              final width = box.size.width;
-              final ratio = (dx / width).clamp(0.0, 1.0);
-              final target = Duration(
-                  milliseconds:
-                      (player.duration.inMilliseconds * ratio).round());
-              player.seek(target);
-            },
-            child: LinearProgressIndicator(
-              value: player.progress,
-              minHeight: 3,
-              backgroundColor: cs.outlineVariant,
-              color: cs.primary,
+          border: Border(
+              top: BorderSide(
+                  color: const Color(0xFF7C4DFF).withValues(alpha: 0.3),
+                  width: 0.8)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.4),
+              blurRadius: 12,
+              offset: const Offset(0, -3),
             ),
-          ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Spectrum bar
+            SizedBox(
+              height: 28,
+              child: SpectrumVisualizer(
+                isPlaying: player.isPlaying,
+                barCount: 60,
+                height: 28,
+                colorBottom: const Color(0xFF7C4DFF),
+                colorTop: const Color(0xFFE040FB),
+              ),
+            ),
 
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              children: [
-                // Thumbnail
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: CachedNetworkImage(
-                    imageUrl: track.thumbnailUrl,
-                    width: 44,
-                    height: 44,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Container(
-                      width: 44,
-                      height: 44,
-                      color: cs.primaryContainer,
-                      child:
-                          Icon(Icons.music_note, color: cs.onPrimaryContainer),
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  // Thumbnail with Hero
+                  Hero(
+                    tag: 'art_${track.id}',
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: CachedNetworkImage(
+                        imageUrl: track.thumbnailUrl,
+                        width: 44,
+                        height: 44,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Container(
+                          width: 44,
+                          height: 44,
+                          color: const Color(0xFF252540),
+                          child: const Icon(Icons.music_note,
+                              color: Colors.white38),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 10),
+                  const SizedBox(width: 12),
 
-                // Track info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        track.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                      Text(
-                        track.artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
+                  // Info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          track.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                        Text(
+                          track.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.5),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
 
-                // Time
-                Text(
-                  '${_fmt(player.position)} / ${_fmt(player.duration)}',
-                  style: Theme.of(context)
-                      .textTheme
-                      .labelSmall
-                      ?.copyWith(color: cs.outline),
-                ),
-                const SizedBox(width: 4),
-
-                // Play / Pause
-                IconButton(
-                  icon: Icon(
-                    player.isPlaying
-                        ? Icons.pause_circle_filled
-                        : Icons.play_circle_filled,
-                    size: 38,
-                    color: cs.primary,
+                  // Prev
+                  IconButton(
+                    icon: const Icon(Icons.skip_previous_rounded,
+                        color: Colors.white54, size: 26),
+                    onPressed: player.hasPrev ? player.skipPrev : null,
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
                   ),
-                  onPressed: () {
-                    if (player.isPlaying) {
-                      player.pause();
-                    } else {
-                      player.resume();
-                    }
-                  },
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
 
-                // Stop
-                IconButton(
-                  icon: Icon(Icons.close, size: 22, color: cs.outline),
-                  onPressed: player.stop,
-                  padding: const EdgeInsets.only(left: 4),
-                  constraints: const BoxConstraints(),
-                ),
-              ],
+                  // Play / Pause
+                  IconButton(
+                    icon: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: Icon(
+                        player.isPlaying
+                            ? Icons.pause_circle_filled_rounded
+                            : Icons.play_circle_filled_rounded,
+                        key: ValueKey(player.isPlaying),
+                        color: const Color(0xFF7C4DFF),
+                        size: 38,
+                      ),
+                    ),
+                    onPressed: () {
+                      player.isPlaying ? player.pause() : player.resume();
+                    },
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                  ),
+
+                  // Next
+                  IconButton(
+                    icon: const Icon(Icons.skip_next_rounded,
+                        color: Colors.white54, size: 26),
+                    onPressed: player.hasNext ? player.skipNext : null,
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    );
-  }
-
-  String _fmt(Duration d) {
-    final mm = d.inMinutes.toString().padLeft(2, '0');
-    final ss = (d.inSeconds % 60).toString().padLeft(2, '0');
-    return '$mm:$ss';
+    ).animate().slideY(begin: 1, end: 0, duration: 250.ms, curve: Curves.easeOut);
   }
 }

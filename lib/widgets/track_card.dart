@@ -21,15 +21,42 @@ class TrackCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      color: const Color(0xFF1C1C2E),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
               // Thumbnail
-              _Thumbnail(url: track.thumbnailUrl),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: CachedNetworkImage(
+                  imageUrl: track.thumbnailUrl,
+                  width: 58,
+                  height: 58,
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) => Container(
+                    width: 58,
+                    height: 58,
+                    color: const Color(0xFF252540),
+                    child: const Icon(Icons.music_note,
+                        color: Colors.white24, size: 24),
+                  ),
+                  errorWidget: (_, __, ___) => Container(
+                    width: 58,
+                    height: 58,
+                    color: const Color(0xFF252540),
+                    child: const Icon(Icons.music_note,
+                        color: Colors.white24, size: 24),
+                  ),
+                ),
+              ),
               const SizedBox(width: 12),
 
               // Info
@@ -41,51 +68,62 @@ class TrackCard extends StatelessWidget {
                       track.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13.5,
+                        height: 1.2,
+                      ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
                       track.artist,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.45),
+                        fontSize: 12,
+                      ),
                     ),
-                    if (progress != null &&
-                        progress.status == DownloadStatus.downloading)
+                    if (progress?.status == DownloadStatus.downloading)
                       Padding(
                         padding: const EdgeInsets.only(top: 6),
-                        child: LinearProgressIndicator(
-                            value: progress.progress),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(2),
+                          child: LinearProgressIndicator(
+                            value: progress!.progress,
+                            backgroundColor: Colors.white12,
+                            valueColor: const AlwaysStoppedAnimation(
+                                Color(0xFF7C4DFF)),
+                            minHeight: 3,
+                          ),
+                        ),
                       ),
                     if (progress?.status == DownloadStatus.converting)
                       Padding(
                         padding: const EdgeInsets.only(top: 6),
-                        child: Row(
-                          children: [
-                            const SizedBox(
-                                width: 12,
-                                height: 12,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2)),
-                            const SizedBox(width: 6),
-                            Text('Конвертация в MP3…',
-                                style:
-                                    Theme.of(context).textTheme.labelSmall),
-                          ],
-                        ),
+                        child: Row(children: [
+                          const SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation(
+                                      Color(0xFFE040FB)))),
+                          const SizedBox(width: 6),
+                          Text('MP3…',
+                              style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.4),
+                                  fontSize: 11)),
+                        ]),
                       ),
                     if (progress?.status == DownloadStatus.error)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           progress!.error ?? 'Ошибка',
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelSmall
-                              ?.copyWith(color: Colors.red),
+                          style: const TextStyle(
+                              color: Colors.redAccent, fontSize: 11),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -95,15 +133,19 @@ class TrackCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
 
-              // Duration + badge
+              // Right side
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(track.durationFormatted,
-                      style: Theme.of(context).textTheme.bodySmall),
+                  Text(
+                    track.durationFormatted,
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.4),
+                        fontSize: 12),
+                  ),
                   const SizedBox(height: 6),
-                  _StatusIcon(
+                  _StatusBadge(
                       isDownloaded: isDownloaded, progress: progress),
                 ],
               ),
@@ -115,58 +157,73 @@ class TrackCard extends StatelessWidget {
   }
 }
 
-class _Thumbnail extends StatelessWidget {
-  final String url;
-  const _Thumbnail({required this.url});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: CachedNetworkImage(
-        imageUrl: url,
-        width: 56,
-        height: 56,
-        fit: BoxFit.cover,
-        placeholder: (_, __) => _placeholder(context),
-        errorWidget: (_, __, ___) => _placeholder(context),
-      ),
-    );
-  }
-
-  Widget _placeholder(BuildContext context) => Container(
-        width: 56,
-        height: 56,
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: const Icon(Icons.music_note),
-      );
-}
-
-class _StatusIcon extends StatelessWidget {
+class _StatusBadge extends StatelessWidget {
   final bool isDownloaded;
   final DownloadProgress? progress;
-
-  const _StatusIcon({required this.isDownloaded, required this.progress});
+  const _StatusBadge({required this.isDownloaded, required this.progress});
 
   @override
   Widget build(BuildContext context) {
     if (isDownloaded) {
-      return const Icon(Icons.download_done_rounded,
-          size: 18, color: Colors.green);
+      return Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.green.withValues(alpha: 0.15),
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.check_rounded, size: 14, color: Colors.green),
+      );
     }
-    if (progress?.status == DownloadStatus.downloading ||
-        progress?.status == DownloadStatus.converting) {
-      return SizedBox(
-        width: 18,
-        height: 18,
-        child: CircularProgressIndicator(
-            strokeWidth: 2,
-            value: progress?.status == DownloadStatus.downloading
-                ? progress?.progress
-                : null),
+    final st = progress?.status;
+    if (st == DownloadStatus.downloading || st == DownloadStatus.converting) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              value:
+                  st == DownloadStatus.downloading ? progress?.progress : null,
+              valueColor:
+                  const AlwaysStoppedAnimation(Color(0xFF7C4DFF)),
+              backgroundColor: Colors.white12,
+            ),
+          ),
+          if (progress?.provider != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: _ProviderDot(provider: progress!.provider!),
+            ),
+        ],
       );
     }
     return Icon(Icons.download_outlined,
-        size: 18, color: Theme.of(context).colorScheme.outline);
+        size: 18, color: Colors.white.withValues(alpha: 0.3));
+  }
+}
+
+class _ProviderDot extends StatelessWidget {
+  final AudioProvider provider;
+  const _ProviderDot({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (provider) {
+      AudioProvider.youtube => ('YT', Colors.red),
+      AudioProvider.soundcloud => ('SC', Colors.deepOrange),
+      AudioProvider.direct => ('URL', Colors.teal),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 0.5),
+      ),
+      child: Text(label,
+          style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold)),
+    );
   }
 }
