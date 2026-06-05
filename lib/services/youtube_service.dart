@@ -34,7 +34,7 @@ class YouTubeService extends ChangeNotifier {
                 videoId: v.id.value,
                 title: v.title,
                 artist: v.author,
-                durationSeconds: v.duration?.inSeconds ?? 0,
+                durationSeconds: _parseDuration(v.duration),
                 thumbnailUrl:
                     'https://i.ytimg.com/vi/${v.id.value}/hqdefault.jpg',
               ))
@@ -65,6 +65,16 @@ class YouTubeService extends ChangeNotifier {
   /// Returns a stream of bytes for the given [streamInfo].
   Stream<List<int>> getAudioStream(AudioOnlyStreamInfo streamInfo) {
     return _yt.videos.streamsClient.get(streamInfo);
+  }
+
+  // Handles both Duration and formatted String "MM:SS" / "H:MM:SS"
+  static int _parseDuration(dynamic d) {
+    if (d == null) return 0;
+    if (d is Duration) return d.inSeconds;
+    final parts = d.toString().split(':').map((p) => int.tryParse(p.trim()) ?? 0).toList();
+    if (parts.length == 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    if (parts.length == 2) return parts[0] * 60 + parts[1];
+    return 0;
   }
 
   @override

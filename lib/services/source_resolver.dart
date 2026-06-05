@@ -9,8 +9,6 @@
 /// format, and provider name so DownloadService can pick the best.
 library;
 
-import 'dart:convert';
-
 import 'package:dio/dio.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
