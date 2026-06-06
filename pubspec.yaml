@@ -37,7 +37,7 @@ dependencies:
   provider: ^6.1.2
 
   # Microphone recording (for music recognition)
-  record: ^6.0.0
+  record: ^5.0.0
 
   # Smooth animations
   flutter_animate: ^4.5.0
