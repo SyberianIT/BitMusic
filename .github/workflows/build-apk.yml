@@ -34,10 +34,15 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Install NDK and CMake
+        run: |
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;25.1.8937393" "cmake;3.22.1"
+
       - name: Create local.properties
         run: |
           echo "flutter.sdk=$FLUTTER_ROOT" > android/local.properties
           echo "sdk.dir=$ANDROID_HOME" >> android/local.properties
+          echo "ndk.dir=$ANDROID_HOME/ndk/25.1.8937393" >> android/local.properties
 
       - name: Get dependencies
         run: flutter pub get
@@ -47,7 +52,7 @@ jobs:
         continue-on-error: true
 
       - name: Build APK (debug)
-        run: flutter build apk --debug --split-per-abi
+        run: flutter build apk --debug --split-per-abi --verbose
 
       - name: Build APK (release)
         run: flutter build apk --release --split-per-abi
