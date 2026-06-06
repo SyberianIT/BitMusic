@@ -30,7 +30,7 @@ android {
 
     defaultConfig {
         applicationId = "com.syberianit.bitmusic"
-        minSdk = 21
+        minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutterVersionCode?.toIntOrNull() ?: 1
         versionName = flutterVersionName ?: "1.0.0"
