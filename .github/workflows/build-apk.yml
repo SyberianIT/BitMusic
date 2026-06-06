@@ -52,20 +52,59 @@ jobs:
         continue-on-error: true
 
       - name: Build APK (release, split per ABI)
-        run: flutter build apk --release --split-per-abi
+        run: |
+          # Flutter 3.29.2 sometimes can't locate APKs after a successful Gradle build
+          # when using Kotlin DSL (build.gradle.kts). The APKs ARE built — we collect
+          # them manually in the next step regardless of whether Flutter's wrapper exits 0.
+          flutter build apk --release --split-per-abi || true
 
       - name: Build universal APK (release)
-        run: flutter build apk --release
+        run: flutter build apk --release || true
 
-      - name: Rename APKs
+      - name: Collect APKs
         run: |
           mkdir -p artifacts
           VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk '{print $2}' | cut -d'+' -f1)
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk  artifacts/BitMusic-${VERSION}-arm64.apk
-          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk artifacts/BitMusic-${VERSION}-arm32.apk
-          cp build/app/outputs/flutter-apk/app-x86_64-release.apk     artifacts/BitMusic-${VERSION}-x64.apk
-          cp build/app/outputs/flutter-apk/app-release.apk             artifacts/BitMusic-${VERSION}-universal.apk
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+          echo "=== All APK files found ==="
+          find . -name "*.apk" -not -path "*/.git/*" 2>/dev/null | sort
+
+          # Search in every location Gradle or Flutter might use
+          find_apk() {
+            local name=$1
+            for dir in \
+              "build/app/outputs/flutter-apk" \
+              "build/app/outputs/apk/release" \
+              "android/app/build/outputs/apk/release" \
+              "android/app/build/outputs/flutter-apk"
+            do
+              [ -f "${dir}/${name}" ] && echo "${dir}/${name}" && return
+            done
+            find . -name "${name}" -not -path "*/.git/*" 2>/dev/null | head -1
+          }
+
+          ARM64=$(find_apk "app-arm64-v8a-release.apk")
+          ARM32=$(find_apk "app-armeabi-v7a-release.apk")
+          X64=$(find_apk   "app-x86_64-release.apk")
+          UNIVERSAL=$(find_apk "app-release.apk")
+
+          echo "arm64:     ${ARM64:-NOT FOUND}"
+          echo "arm32:     ${ARM32:-NOT FOUND}"
+          echo "x64:       ${X64:-NOT FOUND}"
+          echo "universal: ${UNIVERSAL:-NOT FOUND}"
+
+          [ -n "$ARM64" ]     && cp "$ARM64"     "artifacts/BitMusic-${VERSION}-arm64.apk"
+          [ -n "$ARM32" ]     && cp "$ARM32"     "artifacts/BitMusic-${VERSION}-arm32.apk"
+          [ -n "$X64" ]       && cp "$X64"       "artifacts/BitMusic-${VERSION}-x64.apk"
+          [ -n "$UNIVERSAL" ] && cp "$UNIVERSAL" "artifacts/BitMusic-${VERSION}-universal.apk"
+
+          echo "=== Artifacts directory ==="
+          ls -lh artifacts/
+
+          # Fail the job if nothing was collected
+          COUNT=$(ls artifacts/*.apk 2>/dev/null | wc -l)
+          [ "$COUNT" -gt 0 ] || { echo "ERROR: No APKs collected — build failed entirely."; exit 1; }
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
