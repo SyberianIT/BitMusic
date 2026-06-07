@@ -9,7 +9,6 @@ import '../services/database_service.dart';
 import '../services/download_service.dart';
 import '../services/player_service.dart';
 import '../services/source_resolver.dart';
-import '../services/youtube_service.dart';
 
 class DownloadDialog extends StatefulWidget {
   final Track track;
@@ -201,8 +200,7 @@ class _DownloadDialogState extends State<DownloadDialog> {
 
   void _downloadDefault(BuildContext context) {
     context.read<DownloadService>().downloadTrack(
-        widget.track, context.read<YouTubeService>(),
-        context.read<DatabaseService>());
+        widget.track, context.read<DatabaseService>());
     _snack(context, widget.track.title);
   }
 

@@ -7,7 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
 import '../services/recognition_service.dart';
-import '../services/youtube_service.dart';
+import '../services/deezer_service.dart';
 import '../widgets/spectrum_visualizer.dart';
 
 class RecognitionScreen extends StatefulWidget {
@@ -267,7 +267,7 @@ class _RecognitionScreenState extends State<RecognitionScreen>
                 final q = svc.result!.searchQuery;
                 svc.reset();
                 Navigator.pop(context);
-                context.read<YouTubeService>().search(q);
+                context.read<DeezerService>().search(q);
               },
               onClose: _close,
             ),

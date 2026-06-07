@@ -3,7 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
 import '../models/track.dart';
-import '../services/youtube_service.dart';
+import '../services/deezer_service.dart';
 import '../widgets/download_dialog.dart';
 import '../widgets/track_card.dart';
 
@@ -21,7 +21,7 @@ class _SearchScreenState extends State<SearchScreen> {
   void _search() {
     final q = _ctrl.text.trim();
     if (q.isEmpty) return;
-    context.read<YouTubeService>().search(q);
+    context.read<DeezerService>().search(q);
     _focus.unfocus();
   }
 
@@ -37,12 +37,11 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final svc = context.watch<YouTubeService>();
+    final svc = context.watch<DeezerService>();
 
     return SafeArea(
       child: Column(
         children: [
-          // Header
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
             child: Column(
@@ -54,7 +53,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         fontSize: 28,
                         fontWeight: FontWeight.bold)),
                 const SizedBox(height: 2),
-                Text('Найди любой трек',
+                Text('Поиск по Deezer — 90 млн треков',
                     style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.4),
                         fontSize: 13)),
@@ -63,7 +62,6 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Search bar
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
@@ -76,7 +74,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     onSubmitted: (_) => _search(),
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      hintText: 'Трек, исполнитель, строки из текста…',
+                      hintText: 'Трек, исполнитель, альбом…',
                       hintStyle: TextStyle(
                           color: Colors.white.withValues(alpha: 0.3)),
                       prefixIcon:
@@ -110,14 +108,13 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
 
           const SizedBox(height: 8),
-
           Expanded(child: _body(svc)),
         ],
       ),
     );
   }
 
-  Widget _body(YouTubeService svc) {
+  Widget _body(DeezerService svc) {
     if (svc.isLoading) {
       return Center(
         child: Column(
@@ -127,7 +124,8 @@ class _SearchScreenState extends State<SearchScreen> {
                 valueColor: AlwaysStoppedAnimation(Color(0xFF7C4DFF))),
             const SizedBox(height: 16),
             Text('Поиск…',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.4))),
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.4))),
           ],
         ),
       );
@@ -170,12 +168,19 @@ class _SearchScreenState extends State<SearchScreen> {
               shaderCallback: (r) => const LinearGradient(
                 colors: [Color(0xFF7C4DFF), Color(0xFFE040FB)],
               ).createShader(r),
-              child: const Icon(Icons.music_note, size: 80, color: Colors.white),
+              child: const Icon(Icons.music_note,
+                  size: 80, color: Colors.white),
             ),
             const SizedBox(height: 16),
             Text('Введите запрос',
                 style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.5), fontSize: 16)),
+                    color: Colors.white.withValues(alpha: 0.5),
+                    fontSize: 16)),
+            const SizedBox(height: 6),
+            Text('Поиск по базе Deezer — 90 млн треков',
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.25),
+                    fontSize: 12)),
           ],
         ),
       );
@@ -187,8 +192,10 @@ class _SearchScreenState extends State<SearchScreen> {
       itemBuilder: (ctx, i) => TrackCard(
         track: svc.searchResults[i],
         onTap: () => _showOptions(svc.searchResults[i]),
-      ).animate(delay: (i * 40).ms).fadeIn(duration: 300.ms).slideX(
-          begin: 0.05, end: 0, duration: 300.ms, curve: Curves.easeOut),
+      )
+          .animate(delay: (i * 40).ms)
+          .fadeIn(duration: 300.ms)
+          .slideX(begin: 0.05, end: 0, duration: 300.ms, curve: Curves.easeOut),
     );
   }
 
