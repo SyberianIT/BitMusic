@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 import '../models/track.dart';
@@ -111,6 +110,56 @@ class DownloadService extends ChangeNotifier {
     }
   }
 
+  /// Downloads directly from a pre-resolved [AudioSource] (skips re-resolution).
+  Future<void> downloadFromSource(
+    Track track,
+    AudioSource source,
+    DatabaseService dbService,
+  ) async {
+    if (isDownloading(track.id)) return;
+    _update(track.id, DownloadStatus.downloading, 0.0, provider: source.provider);
+
+    try {
+      final musicDir = await _getMusicDirectory();
+      if (musicDir == null) {
+        _error(track.id, 'Нет доступа к хранилищу');
+        return;
+      }
+
+      final safeTitle =
+          track.title.replaceAll(RegExp(r'[<>:"/\\|?*\x00-\x1F]'), '_');
+      final rawExt = _extFor(source.format);
+      final rawPath = '$musicDir/${safeTitle}_${track.videoId}.$rawExt';
+      await _downloadUrl(track.id, source.streamUrl, rawPath, source.headers);
+
+      String finalPath = rawPath;
+      if (!Platform.isAndroid && !Platform.isIOS) {
+        _update(track.id, DownloadStatus.converting, 0.95,
+            provider: source.provider);
+        final mp3Path = '$musicDir/${safeTitle}_${track.videoId}.mp3';
+        if (await _convertToMp3(rawPath, mp3Path)) {
+          await File(rawPath).delete();
+          finalPath = mp3Path;
+        }
+      }
+
+      await dbService.saveTrack(track.copyWith(
+        localPath: finalPath,
+        isDownloaded: true,
+        downloadedAt: DateTime.now(),
+      ));
+
+      _update(track.id, DownloadStatus.done, 1.0, provider: source.provider);
+      await Future.delayed(const Duration(seconds: 3));
+      _downloads.remove(track.id);
+      notifyListeners();
+    } on SocketException {
+      _error(track.id, 'Нет подключения к интернету');
+    } catch (e) {
+      _error(track.id, 'Ошибка: $e');
+    }
+  }
+
   // ── Download via Dio (supports progress) ──────────────────────────────────
 
   Future<void> _downloadUrl(
@@ -200,13 +249,11 @@ class DownloadService extends ChangeNotifier {
 
   Future<String?> _getMusicDirectory() async {
     if (Platform.isAndroid) {
-      bool granted = await Permission.storage.isGranted;
-      if (!granted) granted = (await Permission.storage.request()).isGranted;
-      if (!granted) {
-        granted = (await Permission.manageExternalStorage.request()).isGranted;
-      }
-      if (!granted) return null;
-      final dir = Directory('/storage/emulated/0/Music/BitMusic');
+      // App-scoped external storage requires no permissions on any API level.
+      // Falls back to internal documents dir if external storage is unavailable.
+      final extDir = await getExternalStorageDirectory();
+      final base = extDir?.path ?? (await getApplicationDocumentsDirectory()).path;
+      final dir = Directory('$base/BitMusic');
       await dir.create(recursive: true);
       return dir.path;
     }
