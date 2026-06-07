@@ -207,15 +207,8 @@ class _DownloadDialogState extends State<DownloadDialog> {
   }
 
   void _downloadFrom(BuildContext ctx, AudioSource source) {
-    // Inject the selected source into DownloadService via a direct URL approach
-    final dl = ctx.read<DownloadService>();
-    final db = ctx.read<DatabaseService>();
-    final yt = ctx.read<YouTubeService>();
-
-    // We override the resolver result by calling downloadTrack which will
-    // re-resolve, but the resolver will return same results — just download.
-    // For simplicity we use the existing downloadTrack path (best source first).
-    dl.downloadTrack(widget.track, yt, db);
+    ctx.read<DownloadService>().downloadFromSource(
+        widget.track, source, ctx.read<DatabaseService>());
     _snack(ctx, widget.track.title);
   }
 
