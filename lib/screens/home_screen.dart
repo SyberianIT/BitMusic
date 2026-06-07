@@ -23,26 +23,10 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
   }
 
-  // Nav bar has 3 items: Search | [Mic] | Library
-  // Items 0 and 2 map to screen 0 and 1. Item 1 opens modal.
   int get _navIndex => _selectedIndex == 0 ? 0 : 2;
 
   void _onNavTap(int navIdx) {
     if (navIdx == 1) {
-      // Shazam-style modal
-      Navigator.of(context).push(RecognitionScreen.route());
-      return;
-    }
-    setState(() => _selectedIndex = navIdx == 0 ? 0 : 1);
-  }
-
-  // Nav bar has 3 items: Search | [Mic] | Library
-  // Items 0 and 2 map to screen 0 and 1. Item 1 opens modal.
-  int get _navIndex => _selectedIndex == 0 ? 0 : 2;
-
-  void _onNavTap(int navIdx) {
-    if (navIdx == 1) {
-      // Shazam-style modal
       Navigator.of(context).push(RecognitionScreen.route());
       return;
     }
