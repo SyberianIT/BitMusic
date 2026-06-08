@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 
 import 'app.dart';
@@ -14,6 +13,9 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await DatabaseService.init();
 
+  final dbService = DatabaseService();
+  await dbService.open();
+
   final eqService = EqService();
   await eqService.loadSaved();
 
@@ -27,7 +29,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => DownloadService()),
         ChangeNotifierProvider.value(value: eqService),
         ChangeNotifierProvider(create: (_) => PlayerService(eqService)),
-        ChangeNotifierProvider(create: (_) => DatabaseService()),
+        ChangeNotifierProvider.value(value: dbService),
         ChangeNotifierProvider.value(value: recognitionService),
       ],
       child: const BitMusicApp(),

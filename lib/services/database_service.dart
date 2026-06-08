@@ -8,6 +8,7 @@ class DatabaseService extends ChangeNotifier {
 
   // ignore: prefer_typing_uninitialized_variables
   late Box _box;
+  bool _isOpen = false;
   List<Track> _tracks = [];
 
   List<Track> get tracks => List.unmodifiable(_tracks);
@@ -18,6 +19,7 @@ class DatabaseService extends ChangeNotifier {
 
   Future<void> open() async {
     _box = await Hive.openBox(_boxName);
+    _isOpen = true;
     _reload();
   }
 
@@ -42,9 +44,10 @@ class DatabaseService extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool isDownloaded(String id) => _box.containsKey(id);
+  bool isDownloaded(String id) => _isOpen && _box.containsKey(id);
 
   Track? getTrack(String id) {
+    if (!_isOpen) return null;
     final raw = _box.get(id);
     if (raw == null) return null;
     return Track.fromMap(Map<String, dynamic>.from(raw as Map));

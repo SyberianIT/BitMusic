@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../services/database_service.dart';
 import '../services/player_service.dart';
 import '../widgets/mini_player.dart';
 import 'library_screen.dart';
@@ -22,9 +21,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<DatabaseService>().open();
-    });
   }
 
   // Nav bar has 3 items: Search | [Mic] | Library
