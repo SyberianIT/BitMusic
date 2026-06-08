@@ -9,7 +9,6 @@ import '../services/database_service.dart';
 import '../services/download_service.dart';
 import '../services/player_service.dart';
 import '../services/source_resolver.dart';
-import '../services/youtube_service.dart';
 
 class DownloadDialog extends StatefulWidget {
   final Track track;
@@ -33,10 +32,11 @@ class _DownloadDialogState extends State<DownloadDialog> {
   Future<void> _resolveSources() async {
     setState(() => _resolving = true);
     try {
-      final sources = await _resolver.resolve(
-        '${widget.track.artist} ${widget.track.title}',
-        youtubeVideoId: widget.track.videoId,
-      );
+      final query = widget.track.videoId.length == 11 &&
+              widget.track.videoId.isNotEmpty
+          ? widget.track.videoId
+          : '${widget.track.artist} ${widget.track.title}';
+      final sources = await _resolver.resolve(query);
       if (mounted) setState(() => _sources = sources);
     } catch (_) {
       if (mounted) setState(() => _sources = []);
@@ -133,7 +133,6 @@ class _DownloadDialogState extends State<DownloadDialog> {
               },
             ),
           ] else ...[
-            // Source selector
             if (_resolving)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
@@ -182,7 +181,6 @@ class _DownloadDialogState extends State<DownloadDialog> {
                 ],
               )
             else
-              // Fallback: plain download
               _Action(
                 icon: Icons.download_rounded,
                 color: const Color(0xFF7C4DFF),
@@ -201,21 +199,13 @@ class _DownloadDialogState extends State<DownloadDialog> {
 
   void _downloadDefault(BuildContext context) {
     context.read<DownloadService>().downloadTrack(
-        widget.track, context.read<YouTubeService>(),
-        context.read<DatabaseService>());
+        widget.track, context.read<DatabaseService>());
     _snack(context, widget.track.title);
   }
 
   void _downloadFrom(BuildContext ctx, AudioSource source) {
-    // Inject the selected source into DownloadService via a direct URL approach
-    final dl = ctx.read<DownloadService>();
-    final db = ctx.read<DatabaseService>();
-    final yt = ctx.read<YouTubeService>();
-
-    // We override the resolver result by calling downloadTrack which will
-    // re-resolve, but the resolver will return same results — just download.
-    // For simplicity we use the existing downloadTrack path (best source first).
-    dl.downloadTrack(widget.track, yt, db);
+    ctx.read<DownloadService>().downloadFromSource(
+        widget.track, source, ctx.read<DatabaseService>());
     _snack(ctx, widget.track.title);
   }
 
@@ -241,27 +231,25 @@ class _SourceTile extends StatelessWidget {
 
   static const _providerLabel = {
     AudioProvider.youtube: 'YouTube',
-    AudioProvider.soundcloud: 'SoundCloud',
     AudioProvider.direct: 'Прямая ссылка',
   };
 
   static const _providerColor = {
     AudioProvider.youtube: Color(0xFFFF4040),
-    AudioProvider.soundcloud: Color(0xFFFF5500),
     AudioProvider.direct: Color(0xFF00BCD4),
   };
 
   static const _providerIcon = {
     AudioProvider.youtube: Icons.smart_display_outlined,
-    AudioProvider.soundcloud: Icons.cloud_outlined,
     AudioProvider.direct: Icons.link_rounded,
   };
 
   @override
   Widget build(BuildContext context) {
-    final color = _providerColor[source.provider]!;
-    final label = _providerLabel[source.provider]!;
-    final icon = _providerIcon[source.provider]!;
+    final color =
+        _providerColor[source.provider] ?? const Color(0xFF7C4DFF);
+    final label = _providerLabel[source.provider] ?? source.provider.name;
+    final icon = _providerIcon[source.provider] ?? Icons.audio_file_outlined;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),
@@ -294,9 +282,8 @@ class _SourceTile extends StatelessWidget {
             Text(label,
                 style: TextStyle(
                     color: isFirst ? Colors.white : Colors.white70,
-                    fontWeight: isFirst
-                        ? FontWeight.bold
-                        : FontWeight.normal,
+                    fontWeight:
+                        isFirst ? FontWeight.bold : FontWeight.normal,
                     fontSize: 14)),
             if (isFirst) ...[
               const SizedBox(width: 6),
@@ -337,7 +324,6 @@ class _ProgressIndicator extends StatelessWidget {
     final isConverting = progress?.status == DownloadStatus.converting;
     final providerName = switch (progress?.provider) {
       AudioProvider.youtube => 'YouTube',
-      AudioProvider.soundcloud => 'SoundCloud',
       AudioProvider.direct => 'URL',
       null => '',
     };

@@ -3,7 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
 import '../models/track.dart';
-import '../services/youtube_service.dart';
+import '../services/deezer_service.dart';
 import '../widgets/download_dialog.dart';
 import '../widgets/track_card.dart';
 
@@ -21,7 +21,7 @@ class _SearchScreenState extends State<SearchScreen> {
   void _search() {
     final q = _ctrl.text.trim();
     if (q.isEmpty) return;
-    context.read<YouTubeService>().search(q);
+    context.read<DeezerService>().search(q);
     _focus.unfocus();
   }
 
@@ -37,7 +37,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final svc = context.watch<YouTubeService>();
+    final svc = context.watch<DeezerService>();
 
     return SafeArea(
       child: Column(
@@ -54,7 +54,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         fontSize: 28,
                         fontWeight: FontWeight.bold)),
                 const SizedBox(height: 2),
-                Text('Найди любой трек',
+                Text('Поиск по Deezer — 90 млн треков',
                     style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.4),
                         fontSize: 13)),
@@ -117,7 +117,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _body(YouTubeService svc) {
+  Widget _body(DeezerService svc) {
     if (svc.isLoading) {
       return Center(
         child: Column(
@@ -170,7 +170,8 @@ class _SearchScreenState extends State<SearchScreen> {
               shaderCallback: (r) => const LinearGradient(
                 colors: [Color(0xFF7C4DFF), Color(0xFFE040FB)],
               ).createShader(r),
-              child: const Icon(Icons.music_note, size: 80, color: Colors.white),
+              child:
+                  const Icon(Icons.music_note, size: 80, color: Colors.white),
             ),
             const SizedBox(height: 16),
             Text('Введите запрос',

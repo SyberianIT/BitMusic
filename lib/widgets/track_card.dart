@@ -212,7 +212,6 @@ class _ProviderDot extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, color) = switch (provider) {
       AudioProvider.youtube => ('YT', Colors.red),
-      AudioProvider.soundcloud => ('SC', Colors.deepOrange),
       AudioProvider.direct => ('URL', Colors.teal),
     };
     return Container(
